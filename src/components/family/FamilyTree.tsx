@@ -6,7 +6,7 @@ import { MemberCard } from './MemberCard';
 import { MemberModal } from './MemberModal';
 import { AddMemberForm } from './AddMemberForm';
 import { useAuth } from '../../contexts/AuthContext';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, AlertCircle } from 'lucide-react';
 
 export const FamilyTree: React.FC = () => {
   const [members, setMembers] = useState<FamilyMember[]>([]);
@@ -14,6 +14,7 @@ export const FamilyTree: React.FC = () => {
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>('');
   const { userData, currentUser } = useAuth();
 
   useEffect(() => {
@@ -31,6 +32,7 @@ export const FamilyTree: React.FC = () => {
     }
 
     try {
+      setError('');
       const q = query(
         collection(db, 'familyMembers'),
         where('createdBy', '==', currentUser.uid)
@@ -40,15 +42,20 @@ export const FamilyTree: React.FC = () => {
         id: doc.id,
         ...doc.data()
       })) as FamilyMember[];
+      
+      console.log('Fetched members:', membersData); // Debug log
       setMembers(membersData);
     } catch (error) {
       console.error('Error fetching family members:', error);
+      setError('Failed to load family members. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   const buildTree = (): TreeNode[] => {
+    if (members.length === 0) return [];
+
     const memberMap = new Map<string, FamilyMember>();
     members.forEach(member => memberMap.set(member.id, member));
 
@@ -72,18 +79,31 @@ export const FamilyTree: React.FC = () => {
       };
     };
 
-    members
-      .filter(member => !member.parentId && !processed.has(member.id))
-      .forEach(rootMember => {
-        processed.add(rootMember.id);
-        roots.push(buildNode(rootMember));
-      });
+    // Find root members (those without parents)
+    const rootMembers = members.filter(member => !member.parentId && !processed.has(member.id));
+    
+    rootMembers.forEach(rootMember => {
+      processed.add(rootMember.id);
+      roots.push(buildNode(rootMember));
+    });
+
+    // Handle orphaned members (those with parentId that doesn't exist)
+    const orphanedMembers = members.filter(member => 
+      member.parentId && 
+      !memberMap.has(member.parentId) && 
+      !processed.has(member.id)
+    );
+
+    orphanedMembers.forEach(orphan => {
+      processed.add(orphan.id);
+      roots.push(buildNode(orphan));
+    });
 
     return roots;
   };
 
   const handleDeleteMember = async (memberId: string) => {
-    if (!window.confirm('Are you sure you want to delete this family member?')) {
+    if (!window.confirm('Are you sure you want to delete this family member? This action cannot be undone.')) {
       return;
     }
 
@@ -93,13 +113,12 @@ export const FamilyTree: React.FC = () => {
       setSelectedMember(null);
     } catch (error) {
       console.error('Error deleting family member:', error);
+      setError('Failed to delete family member. Please try again.');
     }
   };
 
   const handleFormSuccess = async () => {
-    // Refresh the family tree data
     await fetchMembers();
-    // Close the forms
     setShowAddForm(false);
     setEditingMember(null);
   };
@@ -109,7 +128,8 @@ export const FamilyTree: React.FC = () => {
     
     return (
       <div key={member.id} className="flex flex-col items-center">
-        <div className="flex items-center space-x-4 mb-8">
+        {/* Member and Spouse Row */}
+        <div className="flex items-center justify-center space-x-6 mb-8">
           <MemberCard
             member={member}
             onClick={() => setSelectedMember(member)}
@@ -117,7 +137,13 @@ export const FamilyTree: React.FC = () => {
           />
           {spouse && (
             <>
-              <div className="w-8 h-px bg-gray-400"></div>
+              <div className="flex items-center">
+                <div className="w-8 h-0.5 bg-pink-400"></div>
+                <div className="w-3 h-3 bg-pink-400 rounded-full mx-1 flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                </div>
+                <div className="w-8 h-0.5 bg-pink-400"></div>
+              </div>
               <MemberCard
                 member={spouse}
                 onClick={() => setSelectedMember(spouse)}
@@ -126,14 +152,32 @@ export const FamilyTree: React.FC = () => {
           )}
         </div>
         
+        {/* Children Connection and Display */}
         {children.length > 0 && (
           <>
-            <div className="w-px h-8 bg-gray-400 mb-4"></div>
-            <div className="flex space-x-12">
-              {children.map((child, index) => (
-                <div key={child.member.id} className="relative">
-                  {index > 0 && (
-                    <div className="absolute -top-4 left-0 w-full h-px bg-gray-400 transform -translate-x-1/2"></div>
+            {/* Vertical line down from parent(s) */}
+            <div className="w-0.5 h-8 bg-gray-400 mb-4"></div>
+            
+            {/* Horizontal line connecting children */}
+            {children.length > 1 && (
+              <div className="relative mb-4">
+                <div className="h-0.5 bg-gray-400" style={{ width: `${(children.length - 1) * 280}px` }}></div>
+                {children.map((_, index) => (
+                  <div 
+                    key={index}
+                    className="absolute w-0.5 h-4 bg-gray-400 -top-4"
+                    style={{ left: `${index * 280}px` }}
+                  ></div>
+                ))}
+              </div>
+            )}
+            
+            {/* Children Row */}
+            <div className="flex items-start justify-center space-x-16">
+              {children.map((child) => (
+                <div key={child.member.id} className="flex flex-col items-center">
+                  {children.length === 1 && (
+                    <div className="w-0.5 h-4 bg-gray-400 mb-4"></div>
                   )}
                   {renderTreeNode(child, level + 1)}
                 </div>
@@ -147,10 +191,10 @@ export const FamilyTree: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading family tree...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading your family tree...</p>
         </div>
       </div>
     );
@@ -158,7 +202,7 @@ export const FamilyTree: React.FC = () => {
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <Users className="h-24 w-24 text-gray-300 mx-auto mb-4" />
           <h2 className="text-2xl font-semibold text-gray-600 mb-2">Please Log In</h2>
@@ -168,42 +212,124 @@ export const FamilyTree: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex justify-between items-center mb-8">
+            <div className="flex items-center space-x-3">
+              <Users className="h-8 w-8 text-blue-600" />
+              <h1 className="text-3xl font-bold text-gray-900">Family Tree</h1>
+            </div>
+            
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center space-x-2 shadow-lg"
+            >
+              <Plus className="h-5 w-5" />
+              <span>Add Member</span>
+            </button>
+          </div>
+
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-red-800 mb-2">Error Loading Family Tree</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <button
+              onClick={fetchMembers}
+              className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const treeRoots = buildTree();
+  console.log('Tree roots:', treeRoots); // Debug log
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-3">
-            <Users className="h-8 w-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Family Tree</h1>
+            <div className="bg-blue-600 rounded-xl p-3 shadow-lg">
+              <Users className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Family Tree</h1>
+              <p className="text-gray-600">
+                {members.length === 0 
+                  ? 'Start building your family connections' 
+                  : `${members.length} family member${members.length !== 1 ? 's' : ''}`
+                }
+              </p>
+            </div>
           </div>
           
           <button
             onClick={() => setShowAddForm(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center space-x-2"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
           >
             <Plus className="h-5 w-5" />
             <span>Add Member</span>
           </button>
         </div>
 
-        {treeRoots.length === 0 ? (
-          <div className="text-center py-16">
-            <Users className="h-24 w-24 text-gray-300 mx-auto mb-4" />
-            <h2 className="text-2xl font-semibold text-gray-600 mb-2">No Family Members Yet</h2>
-            <p className="text-gray-500 mb-6">Start building your family tree by adding the first member.</p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
-            >
-              Add First Member
-            </button>
+        {/* Debug Info - Remove in production */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              Debug: Found {members.length} members, {treeRoots.length} root nodes
+            </p>
+          </div>
+        )}
+
+        {members.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="bg-white rounded-2xl shadow-xl p-12 max-w-md mx-auto">
+              <Users className="h-20 w-20 text-blue-300 mx-auto mb-6" />
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">No Family Members Yet</h2>
+              <p className="text-gray-600 mb-8 leading-relaxed">
+                Start building your family tree by adding the first member. You can add parents, children, and spouses to create your complete family network.
+              </p>
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                Add First Member
+              </button>
+            </div>
+          </div>
+        ) : treeRoots.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="bg-white rounded-2xl shadow-xl p-12 max-w-md mx-auto">
+              <AlertCircle className="h-20 w-20 text-orange-300 mx-auto mb-6" />
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">Unable to Display Tree</h2>
+              <p className="text-gray-600 mb-8 leading-relaxed">
+                There seems to be an issue with the family tree structure. Please check the relationships between family members.
+              </p>
+              <button
+                onClick={fetchMembers}
+                className="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                Refresh Tree
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <div className="inline-flex flex-col items-center space-y-16 min-w-full py-8">
-              {treeRoots.map(root => renderTreeNode(root))}
+          <div className="bg-white rounded-2xl shadow-xl p-8 overflow-x-auto">
+            <div className="min-w-full">
+              <div className="flex flex-col items-center space-y-20 py-8">
+                {treeRoots.map((root, index) => (
+                  <div key={root.member.id} className="w-full flex justify-center">
+                    {index > 0 && <div className="w-full h-px bg-gray-300 mb-20"></div>}
+                    {renderTreeNode(root)}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
