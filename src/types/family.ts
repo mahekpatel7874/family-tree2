@@ -3,6 +3,7 @@ export interface FamilyMember {
   name: string;
   email?: string;
   dateOfBirth: string;
+  gender: 'male' | 'female' | 'other';
   phone?: string;
   address?: string;
   occupation?: string;

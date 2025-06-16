@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, User, CheckCircle } from 'lucide-react';
+import { X, Save, User, CheckCircle, Users } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FamilyMember } from '../../types/family';
@@ -27,6 +27,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
     name: '',
     email: '',
     dateOfBirth: '',
+    gender: '' as 'male' | 'female' | 'other' | '',
     phone: '',
     address: '',
     occupation: '',
@@ -41,6 +42,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
         name: member.name || '',
         email: member.email || '',
         dateOfBirth: member.dateOfBirth || '',
+        gender: member.gender || '',
         phone: member.phone || '',
         address: member.address || '',
         occupation: member.occupation || '',
@@ -70,6 +72,12 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
       return;
     }
 
+    if (!formData.gender) {
+      setError('Gender is required.');
+      setLoading(false);
+      return;
+    }
+
     if (!formData.occupation.trim()) {
       setError('Occupation is required.');
       setLoading(false);
@@ -85,6 +93,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
     try {
       const memberData = {
         ...formData,
+        gender: formData.gender as 'male' | 'female' | 'other',
         createdBy: userData?.uid || '',
         updatedAt: new Date().toISOString(),
         ...(member ? {} : { createdAt: new Date().toISOString() })
@@ -158,7 +167,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center space-x-3">
               <div className="bg-blue-100 rounded-lg p-2">
-                <User className="h-6 w-6 text-blue-600" />
+                <Users className="h-6 w-6 text-blue-600" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900">
                 {member ? 'Edit Family Member' : 'Add New Family Member'}
@@ -193,6 +202,26 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
               </div>
 
               <div>
+                <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-2">
+                  Gender *
+                </label>
+                <select
+                  id="gender"
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleInputChange}
+                  disabled={loading}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
+                  required
+                >
+                  <option value="">Select gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
                 <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700 mb-2">
                   Date of Birth *
                 </label>
@@ -204,6 +233,23 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
                   onChange={handleInputChange}
                   disabled={loading}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="occupation" className="block text-sm font-medium text-gray-700 mb-2">
+                  Occupation *
+                </label>
+                <input
+                  type="text"
+                  id="occupation"
+                  name="occupation"
+                  value={formData.occupation}
+                  onChange={handleInputChange}
+                  disabled={loading}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
+                  placeholder="Enter occupation"
                   required
                 />
               </div>
@@ -237,23 +283,6 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
                   disabled={loading}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
                   placeholder="Enter phone number"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="occupation" className="block text-sm font-medium text-gray-700 mb-2">
-                  Occupation *
-                </label>
-                <input
-                  type="text"
-                  id="occupation"
-                  name="occupation"
-                  value={formData.occupation}
-                  onChange={handleInputChange}
-                  disabled={loading}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
-                  placeholder="Enter occupation"
-                  required
                 />
               </div>
             </div>

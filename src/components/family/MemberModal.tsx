@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Calendar, Mail, Phone, MapPin, Briefcase, User, Edit3, Trash2 } from 'lucide-react';
+import { X, Calendar, Mail, Phone, MapPin, Briefcase, User, Edit3, Trash2, Users } from 'lucide-react';
 import { FamilyMember } from '../../types/family';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -41,6 +41,10 @@ export const MemberModal: React.FC<MemberModalProps> = ({
     return age;
   };
 
+  const formatGender = (gender: string) => {
+    return gender.charAt(0).toUpperCase() + gender.slice(1);
+  };
+
   const canEdit = userData?.isAdmin || userData?.uid === member.createdBy;
 
   return (
@@ -59,7 +63,11 @@ export const MemberModal: React.FC<MemberModalProps> = ({
               <User className="h-12 w-12 text-blue-600" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">{member.name}</h2>
-            <p className="text-gray-600">Age: {getAge(member.dateOfBirth)} years old</p>
+            <div className="flex items-center justify-center space-x-4 text-gray-600">
+              <span>Age: {getAge(member.dateOfBirth)} years old</span>
+              <span>•</span>
+              <span>{formatGender(member.gender)}</span>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -68,6 +76,14 @@ export const MemberModal: React.FC<MemberModalProps> = ({
               <div>
                 <p className="font-medium text-gray-900">Date of Birth</p>
                 <p className="text-gray-600">{formatDate(member.dateOfBirth)}</p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-3">
+              <Users className="h-5 w-5 text-purple-500 mt-1 flex-shrink-0" />
+              <div>
+                <p className="font-medium text-gray-900">Gender</p>
+                <p className="text-gray-600">{formatGender(member.gender)}</p>
               </div>
             </div>
 

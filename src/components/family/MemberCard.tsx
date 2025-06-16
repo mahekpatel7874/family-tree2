@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, User, MapPin, Briefcase } from 'lucide-react';
+import { Calendar, User, MapPin, Briefcase, Users } from 'lucide-react';
 import { FamilyMember } from '../../types/family';
 
 interface MemberCardProps {
@@ -33,6 +33,32 @@ export const MemberCard: React.FC<MemberCardProps> = ({ member, onClick, isRoot 
     return age;
   };
 
+  const getGenderColor = (gender: string) => {
+    switch (gender) {
+      case 'male':
+        return 'from-blue-100 to-blue-200';
+      case 'female':
+        return 'from-pink-100 to-pink-200';
+      default:
+        return 'from-purple-100 to-purple-200';
+    }
+  };
+
+  const getGenderIcon = (gender: string) => {
+    switch (gender) {
+      case 'male':
+        return 'text-blue-600';
+      case 'female':
+        return 'text-pink-600';
+      default:
+        return 'text-purple-600';
+    }
+  };
+
+  const formatGender = (gender: string) => {
+    return gender.charAt(0).toUpperCase() + gender.slice(1);
+  };
+
   return (
     <div 
       onClick={onClick}
@@ -47,16 +73,8 @@ export const MemberCard: React.FC<MemberCardProps> = ({ member, onClick, isRoot 
       {/* Profile Section */}
       <div className="flex flex-col items-center text-center mb-4">
         <div className="relative mb-4">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-lg overflow-hidden ring-4 ring-white">
-            {member.imageUrl ? (
-              <img 
-                src={member.imageUrl} 
-                alt={member.name}
-                className="w-20 h-20 rounded-full object-cover"
-              />
-            ) : (
-              <User className="h-10 w-10 text-blue-600" />
-            )}
+          <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${getGenderColor(member.gender)} flex items-center justify-center shadow-lg overflow-hidden ring-4 ring-white`}>
+            <User className={`h-10 w-10 ${getGenderIcon(member.gender)}`} />
           </div>
           {isRoot && (
             <div className="absolute -top-2 -right-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-lg font-semibold">
@@ -74,8 +92,13 @@ export const MemberCard: React.FC<MemberCardProps> = ({ member, onClick, isRoot 
           <span>{formatDate(member.dateOfBirth)}</span>
         </div>
         
-        <div className="text-sm text-gray-500 font-medium">
-          Age: {getAge(member.dateOfBirth)}
+        <div className="flex items-center space-x-3 text-sm text-gray-500 font-medium mb-2">
+          <span>Age: {getAge(member.dateOfBirth)}</span>
+          <span>•</span>
+          <div className="flex items-center">
+            <Users className={`h-3 w-3 mr-1 ${getGenderIcon(member.gender)}`} />
+            <span>{formatGender(member.gender)}</span>
+          </div>
         </div>
       </div>
 
@@ -98,8 +121,8 @@ export const MemberCard: React.FC<MemberCardProps> = ({ member, onClick, isRoot 
 
       {/* Status Badge */}
       <div className="mt-4 flex justify-center">
-        <div className="px-3 py-1 bg-gradient-to-r from-blue-50 to-blue-100 rounded-full border border-blue-200">
-          <span className="text-xs text-blue-700 font-semibold">
+        <div className={`px-3 py-1 bg-gradient-to-r ${getGenderColor(member.gender)} rounded-full border-2 ${member.gender === 'male' ? 'border-blue-200' : member.gender === 'female' ? 'border-pink-200' : 'border-purple-200'}`}>
+          <span className={`text-xs font-semibold ${getGenderIcon(member.gender)}`}>
             Family Member
           </span>
         </div>
