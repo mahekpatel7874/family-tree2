@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, User, Upload, CheckCircle } from 'lucide-react';
+import { X, Save, User, CheckCircle } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, storage } from '../../config/firebase';
+import { db } from '../../config/firebase';
 import { FamilyMember } from '../../types/family';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -21,17 +20,13 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
 }) => {
   const { userData } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>('');
   
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     dateOfBirth: '',
-    imageUrl: '',
     phone: '',
     address: '',
     occupation: '',
@@ -46,7 +41,6 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
         name: member.name || '',
         email: member.email || '',
         dateOfBirth: member.dateOfBirth || '',
-        imageUrl: member.imageUrl || '',
         phone: member.phone || '',
         address: member.address || '',
         occupation: member.occupation || '',
@@ -54,78 +48,8 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
         parentId: member.parentId || '',
         spouseId: member.spouseId || ''
       });
-      setImagePreview(member.imageUrl || '');
     }
   }, [member]);
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setError('Please select a valid image file.');
-        return;
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Image size must be less than 5MB.');
-        return;
-      }
-
-      setImageFile(file);
-      setError('');
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const uploadImage = async (): Promise<string> => {
-    if (!imageFile || !userData) return formData.imageUrl;
-
-    setUploadingImage(true);
-    try {
-      // Create a unique filename
-      const timestamp = Date.now();
-      const fileName = `family-members/${userData.uid}/${timestamp}-${imageFile.name}`;
-      const imageRef = ref(storage, fileName);
-
-      // Upload the file
-      await uploadBytes(imageRef, imageFile);
-      
-      // Get the download URL
-      const downloadURL = await getDownloadURL(imageRef);
-      return downloadURL;
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      throw new Error('Failed to upload image');
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const deleteOldImage = async (imageUrl: string) => {
-    if (!imageUrl || !imageUrl.includes('firebase')) return;
-    
-    try {
-      // Extract the path from the URL
-      const url = new URL(imageUrl);
-      const pathMatch = url.pathname.match(/\/o\/(.+)\?/);
-      if (pathMatch) {
-        const imagePath = decodeURIComponent(pathMatch[1]);
-        const imageRef = ref(storage, imagePath);
-        await deleteObject(imageRef);
-      }
-    } catch (error) {
-      console.error('Error deleting old image:', error);
-      // Don't throw error as this is not critical
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,21 +83,8 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
     }
 
     try {
-      let imageUrl = formData.imageUrl;
-      
-      // Upload new image if selected
-      if (imageFile) {
-        imageUrl = await uploadImage();
-        
-        // Delete old image if updating and there was a previous image
-        if (member && member.imageUrl && member.imageUrl !== imageUrl) {
-          await deleteOldImage(member.imageUrl);
-        }
-      }
-
       const memberData = {
         ...formData,
-        imageUrl,
         createdBy: userData?.uid || '',
         updatedAt: new Date().toISOString(),
         ...(member ? {} : { createdAt: new Date().toISOString() })
@@ -207,12 +118,6 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
       ...formData,
       [e.target.name]: e.target.value
     });
-  };
-
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview('');
-    setFormData({ ...formData, imageUrl: '' });
   };
 
   const availableSpouses = availableParents.filter(p => 
@@ -261,7 +166,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
             </div>
             <button
               onClick={onClose}
-              disabled={loading || uploadingImage}
+              disabled={loading}
               className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
             >
               <X className="h-6 w-6" />
@@ -269,58 +174,6 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Image Upload Section */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Profile Picture
-              </label>
-              
-              <div className="flex items-center space-x-4">
-                <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                  {imagePreview ? (
-                    <img 
-                      src={imagePreview} 
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <User className="h-8 w-8 text-gray-400" />
-                  )}
-                </div>
-                
-                <div className="flex-1">
-                  <div className="flex space-x-2">
-                    <label className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg cursor-pointer transition-colors flex items-center space-x-2 disabled:opacity-50">
-                      <Upload className="h-4 w-4" />
-                      <span>Upload Image</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageSelect}
-                        disabled={loading || uploadingImage}
-                        className="hidden"
-                      />
-                    </label>
-                    
-                    {imagePreview && (
-                      <button
-                        type="button"
-                        onClick={removeImage}
-                        disabled={loading || uploadingImage}
-                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  
-                  <p className="text-xs text-gray-500 mt-1">
-                    Supported formats: JPG, PNG, GIF (max 5MB)
-                  </p>
-                </div>
-              </div>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
@@ -332,7 +185,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  disabled={loading || uploadingImage}
+                  disabled={loading}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
                   placeholder="Enter full name"
                   required
@@ -349,7 +202,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
                   name="dateOfBirth"
                   value={formData.dateOfBirth}
                   onChange={handleInputChange}
-                  disabled={loading || uploadingImage}
+                  disabled={loading}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
                   required
                 />
@@ -365,7 +218,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  disabled={loading || uploadingImage}
+                  disabled={loading}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
                   placeholder="Enter email address"
                 />
@@ -381,7 +234,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
                   name="phone"
                   value={formData.phone}
                   onChange={handleInputChange}
-                  disabled={loading || uploadingImage}
+                  disabled={loading}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
                   placeholder="Enter phone number"
                 />
@@ -397,7 +250,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
                   name="occupation"
                   value={formData.occupation}
                   onChange={handleInputChange}
-                  disabled={loading || uploadingImage}
+                  disabled={loading}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
                   placeholder="Enter occupation"
                   required
@@ -415,7 +268,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
                 name="address"
                 value={formData.address}
                 onChange={handleInputChange}
-                disabled={loading || uploadingImage}
+                disabled={loading}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
                 placeholder="Enter address"
                 required
@@ -432,7 +285,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
                   name="parentId"
                   value={formData.parentId}
                   onChange={handleInputChange}
-                  disabled={loading || uploadingImage}
+                  disabled={loading}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
                 >
                   <option value="">Select parent (optional)</option>
@@ -455,7 +308,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
                   name="spouseId"
                   value={formData.spouseId}
                   onChange={handleInputChange}
-                  disabled={loading || uploadingImage}
+                  disabled={loading}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 disabled:bg-gray-100 disabled:opacity-50"
                 >
                   <option value="">Select spouse (optional)</option>
@@ -477,7 +330,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
                 name="bio"
                 value={formData.bio}
                 onChange={handleInputChange}
-                disabled={loading || uploadingImage}
+                disabled={loading}
                 rows={4}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 resize-none disabled:bg-gray-100 disabled:opacity-50"
                 placeholder="Enter a brief biography..."
@@ -494,22 +347,17 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                disabled={loading || uploadingImage}
+                disabled={loading}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={loading || uploadingImage}
+                disabled={loading}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
-                {uploadingImage ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    <span>Uploading Image...</span>
-                  </>
-                ) : loading ? (
+                {loading ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                     <span>Saving Member...</span>

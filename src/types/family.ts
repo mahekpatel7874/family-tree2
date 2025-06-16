@@ -3,7 +3,6 @@ export interface FamilyMember {
   name: string;
   email?: string;
   dateOfBirth: string;
-  imageUrl?: string;
   phone?: string;
   address?: string;
   occupation?: string;

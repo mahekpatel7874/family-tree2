@@ -56,15 +56,7 @@ export const MemberModal: React.FC<MemberModalProps> = ({
 
           <div className="text-center mb-6">
             <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mx-auto mb-4 shadow-lg">
-              {member.imageUrl ? (
-                <img 
-                  src={member.imageUrl} 
-                  alt={member.name}
-                  className="w-24 h-24 rounded-full object-cover"
-                />
-              ) : (
-                <User className="h-12 w-12 text-blue-600" />
-              )}
+              <User className="h-12 w-12 text-blue-600" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">{member.name}</h2>
             <p className="text-gray-600">Age: {getAge(member.dateOfBirth)} years old</p>
